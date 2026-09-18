@@ -1,16 +1,22 @@
 workflows:
-  e2008-android-debug:
-    name: e-2008 CAN - Build APK v4
+  e2008-android-debug-v5:
+    name: e-2008 CAN - Build APK v11 LIVE + DECODE + FULL BMS v11 FIRST DRAFT LIVE
     instance_type: mac_mini_m2
     max_build_duration: 60
 
     environment:
       java: 17
-      xcode: latest
       vars:
         GRADLE_VERSION: "8.7"
 
     scripts:
+      - name: V5 marker
+        script: |
+          set -e
+          echo "===== E2008 CODEMAGIC V5 ACTIVE ====="
+          echo "Commit: $CM_COMMIT"
+          echo "Branch: $CM_BRANCH"
+
       - name: Unpack Android project
         script: |
           set -e
@@ -27,19 +33,33 @@ workflows:
         script: |
           set -e
 
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/project/local.properties"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/share/android-sdk}"
+          echo "SDK_ROOT=$SDK_ROOT"
+          echo "sdk.dir=$SDK_ROOT" > "$CM_BUILD_DIR/project/local.properties"
 
-          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          echo "Installed Android platforms:"
+          ls -1 "$SDK_ROOT/platforms" 2>/dev/null || true
+
+          echo "Installed Android build-tools:"
+          ls -1 "$SDK_ROOT/build-tools" 2>/dev/null || true
+
+          if [ -d "$SDK_ROOT/platforms/android-35" ] && [ -d "$SDK_ROOT/build-tools/35.0.0" ]; then
+            echo "Android API 35 and Build Tools 35.0.0 already installed."
+            exit 0
+          fi
+
+          SDKMANAGER="/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager"
 
           if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           fi
 
           if [ ! -x "$SDKMANAGER" ]; then
-            echo "SDK Manager not found."
-            echo "Contents of ANDROID_SDK_ROOT:"
-            ls -la "$ANDROID_SDK_ROOT" || true
+            SDKMANAGER="$(find "$SDK_ROOT" /usr/local/share/android-sdk -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+          fi
+
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found."
             exit 1
           fi
 
@@ -50,7 +70,6 @@ workflows:
       - name: Install exact Gradle 8.7
         script: |
           set -e
-
           GRADLE_ZIP="/tmp/gradle-${GRADLE_VERSION}-bin.zip"
           GRADLE_HOME="/tmp/gradle-${GRADLE_VERSION}"
 
@@ -66,13 +85,11 @@ workflows:
         script: |
           set -e
           cd "$CM_BUILD_DIR/project"
-
           /tmp/gradle-${GRADLE_VERSION}/bin/gradle             --no-daemon             --stacktrace             clean assembleDebug
 
       - name: Verify APK
         script: |
           set -e
-
           APK="$CM_BUILD_DIR/project/app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
           ls -lh "$APK"
