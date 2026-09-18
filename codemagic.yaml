@@ -1,11 +1,12 @@
 workflows:
   e2008-android-debug:
-    name: e-2008 CAN - Build APK
+    name: e-2008 CAN - Build APK v4
     instance_type: mac_mini_m2
     max_build_duration: 60
 
     environment:
       java: 17
+      xcode: latest
       vars:
         GRADLE_VERSION: "8.7"
 
@@ -17,40 +18,61 @@ workflows:
           rm -rf project
           mkdir project
           unzip -q e2008-project.zip -d project
-          echo "Project unpacked:"
-          ls -la project
           test -f project/settings.gradle
           test -f project/build.gradle
           test -f project/app/build.gradle
+          echo "Android project unpacked OK"
 
       - name: Configure Android SDK
         script: |
           set -e
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/project/local.properties"
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Install Gradle 8.7
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/project/local.properties"
+
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          fi
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "SDK Manager not found."
+            echo "Contents of ANDROID_SDK_ROOT:"
+            ls -la "$ANDROID_SDK_ROOT" || true
+            exit 1
+          fi
+
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install exact Gradle 8.7
         script: |
           set -e
+
           GRADLE_ZIP="/tmp/gradle-${GRADLE_VERSION}-bin.zip"
           GRADLE_HOME="/tmp/gradle-${GRADLE_VERSION}"
+
           if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
             curl --fail --location --retry 3               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"               --output "$GRADLE_ZIP"
             rm -rf "$GRADLE_HOME"
             unzip -q "$GRADLE_ZIP" -d /tmp
           fi
+
           "$GRADLE_HOME/bin/gradle" --version
 
       - name: Build debug APK
         script: |
           set -e
           cd "$CM_BUILD_DIR/project"
+
           /tmp/gradle-${GRADLE_VERSION}/bin/gradle             --no-daemon             --stacktrace             clean assembleDebug
 
       - name: Verify APK
         script: |
           set -e
+
           APK="$CM_BUILD_DIR/project/app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
           ls -lh "$APK"
