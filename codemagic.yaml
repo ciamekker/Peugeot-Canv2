@@ -1,6 +1,6 @@
 workflows:
   e2008-android-debug-v5:
-    name: e-2008 CAN - Build APK v28 CLEAN LIVE + DECODE + FULL BMS v28 CLEAN
+    name: Stellantis EV Diagnostic - v28 CLEAN FIXED
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -13,7 +13,7 @@ workflows:
       - name: V5 marker
         script: |
           set -e
-          echo "===== E2008 CODEMAGIC V5 ACTIVE ====="
+          echo "===== STELLANTIS EV v28 CLEAN FIXED ====="
           echo "Commit: $CM_COMMIT"
           echo "Branch: $CM_BRANCH"
 
@@ -23,7 +23,7 @@ workflows:
           cd "$CM_BUILD_DIR"
           rm -rf project
           mkdir project
-          unzip -q e2008-project.zip -d project
+          unzip -q stellantis-ev-v28-clean-project.zip -d project
           test -f project/settings.gradle
           test -f project/build.gradle
           test -f project/app/build.gradle
